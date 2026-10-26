@@ -24,6 +24,71 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /music/charts:
+    get:
+      operationId: getMusicCharts
+      tags: [music]
+      summary: Get a regional music chart
+      parameters:
+        - name: country
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-z]{2}$"
+      responses:
+        "200":
+          description: Current regional chart tracks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MusicTrack"
+        "400":
+          description: Invalid country
+        "502":
+          description: Music catalog unavailable
+  /music/search:
+    get:
+      operationId: searchMusic
+      tags: [music]
+      summary: Search the music catalog
+      parameters:
+        - name: term
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 120
+        - name: country
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: "^[a-z]{2}$"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 30
+      responses:
+        "200":
+          description: Matching music tracks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MusicTrack"
+        "400":
+          description: Invalid search query
+        "502":
+          description: Music catalog unavailable
 components:
   schemas:
     HealthStatus:
@@ -33,4 +98,35 @@ components:
           type: string
       required:
         - status
+    MusicTrack:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        artist:
+          type: string
+        album:
+          type: string
+        artworkUrl:
+          type: string
+        previewUrl:
+          type: ["string", "null"]
+        durationMs:
+          type: integer
+        releaseDate:
+          type: ["string", "null"]
+        genre:
+          type: string
+      required:
+        - id
+        - title
+        - artist
+        - album
+        - artworkUrl
+        - previewUrl
+        - durationMs
+        - releaseDate
+        - genre
 
