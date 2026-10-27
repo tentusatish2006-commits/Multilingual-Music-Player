@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: music
+    description: Jamendo catalog and playback operations
 paths:
   /healthz:
     get:
@@ -24,50 +26,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
-  /music/charts:
+  /music/tracks:
     get:
-      operationId: getMusicCharts
+      operationId: searchJamendoTracks
       tags: [music]
-      summary: Get a regional music chart
+      summary: Search Jamendo tracks by lyric language and query
       parameters:
-        - name: country
+        - name: language
           in: query
           required: true
           schema:
             type: string
-            pattern: "^[a-z]{2}$"
-      responses:
-        "200":
-          description: Current regional chart tracks
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/MusicTrack"
-        "400":
-          description: Invalid country
-        "502":
-          description: Music catalog unavailable
-  /music/search:
-    get:
-      operationId: searchMusic
-      tags: [music]
-      summary: Search the music catalog
-      parameters:
+            enum: [te, hi, en]
         - name: term
-          in: query
-          required: true
-          schema:
-            type: string
-            minLength: 1
-            maxLength: 120
-        - name: country
           in: query
           required: false
           schema:
             type: string
-            pattern: "^[a-z]{2}$"
+            maxLength: 120
         - name: limit
           in: query
           required: false
@@ -75,20 +51,76 @@ paths:
             type: integer
             minimum: 1
             maximum: 50
-            default: 30
+            default: 24
       responses:
         "200":
-          description: Matching music tracks
+          description: Tracks with full-length streams and track-level licensing data
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/MusicTrack"
+                  $ref: "#/components/schemas/JamendoTrack"
         "400":
-          description: Invalid search query
+          description: Invalid language or search parameters
+        "503":
+          description: Jamendo client ID is not configured
         "502":
-          description: Music catalog unavailable
+          description: Jamendo catalog unavailable
+  /music/tracks/{id}:
+    get:
+      operationId: getJamendoTrack
+      tags: [music]
+      summary: Get a current stream URL for a saved track
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9]+$"
+      responses:
+        "200":
+          description: Current Jamendo track metadata and stream URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JamendoTrack"
+        "400":
+          description: Invalid track ID
+        "404":
+          description: Track not found or no longer available
+        "503":
+          description: Jamendo client ID is not configured
+        "502":
+          description: Jamendo catalog unavailable
+  /music/download/{id}:
+    post:
+      operationId: prepareJamendoDownload
+      tags: [music]
+      summary: Download a track only when Jamendo allows it
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: "^[0-9]+$"
+      responses:
+        "200":
+          description: Download URL, after checking the track's current permission flag
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JamendoDownload"
+        "400":
+          description: Invalid track ID
+        "403":
+          description: Download is not permitted for this track
+        "404":
+          description: Track not found
+        "503":
+          description: Jamendo client ID is not configured
 components:
   schemas:
     HealthStatus:
@@ -98,7 +130,7 @@ components:
           type: string
       required:
         - status
-    MusicTrack:
+    JamendoTrack:
       type: object
       properties:
         id:
@@ -111,22 +143,38 @@ components:
           type: string
         artworkUrl:
           type: string
-        previewUrl:
-          type: ["string", "null"]
-        durationMs:
+        streamUrl:
+          type: string
+        durationSeconds:
           type: integer
-        releaseDate:
-          type: ["string", "null"]
         genre:
           type: string
+        language:
+          type: string
+        licenseUrl:
+          type: string
+        trackUrl:
+          type: string
+        downloadAllowed:
+          type: boolean
       required:
         - id
         - title
         - artist
         - album
         - artworkUrl
-        - previewUrl
-        - durationMs
-        - releaseDate
+        - streamUrl
+        - durationSeconds
         - genre
+        - language
+        - licenseUrl
+        - trackUrl
+        - downloadAllowed
+    JamendoDownload:
+      type: object
+      properties:
+        downloadUrl:
+          type: string
+      required:
+        - downloadUrl
 

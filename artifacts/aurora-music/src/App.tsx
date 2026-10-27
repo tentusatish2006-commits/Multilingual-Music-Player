@@ -1,98 +1,48 @@
-import { useEffect, useRef, useState, type FormEvent, type PointerEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type PointerEvent, type ReactNode } from 'react';
 import { Link, Route, Switch, useLocation } from 'wouter';
 import {
-  Activity, ArrowLeft, ArrowRight, AudioLines, Bookmark, Check,
-  Disc3, Globe2, Headphones, Heart, Library, Music2,
-  Pause, Play, Radio, RotateCcw, Search, Sparkles, Volume2,
-  X,
+  Activity, ArrowLeft, ArrowRight, AudioLines, Bookmark, Check, Disc3,
+  Download, ExternalLink, Globe2, Headphones, Heart, Library, ListMusic, Music2,
+  Pause, Play, Plus, Radio, RotateCcw, Search, SkipBack, SkipForward, Sparkles,
+  Trash2, Volume2, X,
 } from 'lucide-react';
+import {
+  getGetJamendoTrackQueryKey, getSearchJamendoTracksQueryKey,
+  useGetJamendoTrack, usePrepareJamendoDownload, useSearchJamendoTracks,
+} from '@workspace/api-client-react';
+import type { JamendoTrack } from '@workspace/api-client-react';
 
-type Track = {
-  id: string;
-  title: string;
-  artist: string;
-  album: string;
-  artworkUrl: string;
-  previewUrl: string | null;
-  durationMs: number;
-  releaseDate?: string;
-  genre: string;
-};
-
-type SavedData = { saved: Track[]; recent: Track[] };
-type Country = { label: string; code: string; language: string; search: string };
-
-const COUNTRIES: Country[] = [
-  { label: 'United States', code: 'us', language: 'English', search: 'pop hits' },
-  { label: 'Japan', code: 'jp', language: 'Japanese', search: 'J-pop' },
-  { label: 'South Korea', code: 'kr', language: 'Korean', search: 'K-pop' },
-  { label: 'Brazil', code: 'br', language: 'Portuguese', search: 'Brazilian pop' },
-  { label: 'Mexico', code: 'mx', language: 'Spanish', search: 'Latin pop' },
-  { label: 'France', code: 'fr', language: 'French', search: 'French pop' },
-  { label: 'United Kingdom', code: 'gb', language: 'English', search: 'UK hits' },
-  { label: 'India', code: 'in', language: 'Hindi', search: 'Hindi songs' },
-  { label: 'Nigeria', code: 'ng', language: 'Afrobeats', search: 'Afrobeats' },
-  { label: 'Italy', code: 'it', language: 'Italian', search: 'Italian pop' },
-  { label: 'Germany', code: 'de', language: 'German', search: 'German pop' },
-  { label: 'Australia', code: 'au', language: 'English', search: 'Australian music' },
+type Lang = 'te' | 'hi' | 'en';
+type Language = { code: Lang; label: string; descriptor: string; prompt: string };
+type SavedTrack = Omit<JamendoTrack, 'streamUrl'> & { streamUrl?: string };
+type Playlist = { id: string; name: string; tracks: SavedTrack[] };
+type LibraryData = { saved: SavedTrack[]; recent: SavedTrack[]; playlists: Playlist[] };
+const LANGUAGES: Language[] = [
+  { code: 'te', label: 'Telugu', descriptor: 'A new current from South India', prompt: 'Find Telugu songs and artists' },
+  { code: 'hi', label: 'Hindi', descriptor: 'Melody with a wide horizon', prompt: 'Find Hindi songs and artists' },
+  { code: 'en', label: 'English', descriptor: 'Independent voices, everywhere', prompt: 'Find English songs and artists' },
 ];
+const STORAGE_KEY = 'aurora-jamendo-library-v2';
+const EMPTY_LIBRARY: LibraryData = { saved: [], recent: [], playlists: [] };
 
-const LANGUAGES = [
-  { name: 'Korean', note: 'Seoul to everywhere', term: 'K-pop' },
-  { name: 'Japanese', note: 'New sounds from Japan', term: 'J-pop' },
-  { name: 'Spanish', note: 'The Latin pulse', term: 'Latin pop' },
-  { name: 'Portuguese', note: 'Brazil on repeat', term: 'Brazilian pop' },
-  { name: 'Hindi', note: 'A whole new rhythm', term: 'Hindi songs' },
-  { name: 'Tamil', note: 'Tamil sounds, worldwide', term: 'Tamil songs' },
-  { name: 'Telugu', note: 'Fresh Telugu releases', term: 'Telugu songs' },
-  { name: 'Malayalam', note: 'Sounds from Kerala', term: 'Malayalam songs' },
-  { name: 'Kannada', note: 'Discover Kannada music', term: 'Kannada songs' },
-  { name: 'Bengali', note: 'New Bengali favorites', term: 'Bengali songs' },
-  { name: 'Punjabi', note: 'Punjabi pop and bhangra', term: 'Punjabi songs' },
-  { name: 'Arabic', note: 'Across the Arab world', term: 'Arabic pop' },
-  { name: 'Mandarin', note: 'Mandopop discoveries', term: 'Mandopop' },
-  { name: 'Indonesian', note: 'Pop from Indonesia', term: 'Indonesian pop' },
-  { name: 'Thai', note: 'New sounds from Thailand', term: 'Thai pop' },
-  { name: 'Vietnamese', note: 'V-pop discoveries', term: 'Vietnamese pop' },
-  { name: 'Turkish', note: 'Pop from Türkiye', term: 'Turkish pop' },
-  { name: 'Russian', note: 'Sounds from across Russia', term: 'Russian pop' },
-  { name: 'Filipino', note: 'OPM and new releases', term: 'Filipino pop' },
-  { name: 'Dutch', note: 'New music from the Netherlands', term: 'Dutch pop' },
-  { name: 'Polish', note: 'Fresh sounds from Poland', term: 'Polish pop' },
-  { name: 'Afrobeats', note: 'West African energy', term: 'Afrobeats' },
-  { name: 'French', note: 'French pop discoveries', term: 'French pop' },
-  { name: 'Italian', note: 'New music from Italy', term: 'Italian pop' },
-  { name: 'German', note: 'Fresh German releases', term: 'German pop' },
-  { name: 'English', note: 'The latest in English', term: 'English pop' },
-];
-
-const LANGUAGE_COUNTRIES: Record<string, string> = {
-  Korean: 'kr', Japanese: 'jp', Spanish: 'mx', Portuguese: 'br',
-  Hindi: 'in', Tamil: 'in', Telugu: 'in', Malayalam: 'in',
-  Kannada: 'in', Bengali: 'in', Punjabi: 'in', Arabic: 'ae',
-  Mandarin: 'tw', Indonesian: 'id', Thai: 'th', Vietnamese: 'vn',
-  Turkish: 'tr', Russian: 'ru', Filipino: 'ph', Dutch: 'nl',
-  Polish: 'pl', Afrobeats: 'ng', French: 'fr', Italian: 'it',
-  German: 'de', English: 'us',
-};
-
-const STORAGE_KEY = 'aurora-listening-library-v1';
-
-function readLibrary(): SavedData {
+function readLibrary(): LibraryData {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as Partial<SavedData>;
-    return { saved: Array.isArray(parsed.saved) ? parsed.saved : [], recent: Array.isArray(parsed.recent) ? parsed.recent : [] };
-  } catch {
-    return { saved: [], recent: [] };
-  }
+    const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}') as Partial<LibraryData>;
+    return {
+      saved: Array.isArray(value.saved) ? value.saved : [],
+      recent: Array.isArray(value.recent) ? value.recent : [],
+      playlists: Array.isArray(value.playlists) ? value.playlists : [],
+    };
+  } catch { return EMPTY_LIBRARY; }
 }
-
-function formatTime(ms: number) {
-  if (!ms) return '—';
-  const seconds = Math.floor(ms / 1000);
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+function toSaved(track: JamendoTrack): SavedTrack {
+  const { streamUrl: _streamUrl, ...metadata } = track;
+  return metadata;
 }
-
+function formatTime(seconds: number) {
+  if (!Number.isFinite(seconds) || seconds < 0) return '—';
+  return `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`;
+}
 function usePointerTilt() {
   const [style, setStyle] = useState<Record<string, string>>({});
   const onMove = (event: PointerEvent<HTMLElement>) => {
@@ -108,20 +58,32 @@ function usePointerTilt() {
 
 function App() {
   const [location, navigate] = useLocation();
-  const [library, setLibrary] = useState<SavedData>(readLibrary);
-  const [playingTrack, setPlayingTrack] = useState<Track | null>(null);
+  const [library, setLibrary] = useState<LibraryData>(readLibrary);
+  const [queue, setQueue] = useState<JamendoTrack[]>([]);
+  const [queueSaved, setQueueSaved] = useState(false);
+  const [queueIndex, setQueueIndex] = useState(-1);
+  const [playingTrack, setPlayingTrack] = useState<JamendoTrack | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.78);
+  const [volume, setVolume] = useState(.78);
+  const [pendingTrackId, setPendingTrackId] = useState('');
+  const [toast, setToast] = useState<{ text: string; error?: boolean } | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => { localStorage.setItem(STORAGE_KEY, JSON.stringify(library)); }, [library]);
+  useEffect(() => {
+    if (!toast) return;
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 3400);
+    return () => { if (toastTimer.current) clearTimeout(toastTimer.current); };
+  }, [toast]);
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     audio.volume = volume;
-    if (playingTrack?.previewUrl) {
-      audio.src = playingTrack.previewUrl;
-      if (isPlaying) void audio.play().catch(() => setIsPlaying(false));
+    if (playingTrack?.streamUrl) {
+      if (audio.src !== new URL(playingTrack.streamUrl, window.location.href).href) audio.src = playingTrack.streamUrl;
+      if (isPlaying) void audio.play().catch(() => { setIsPlaying(false); setToast({ text: 'This stream could not start. Try another track.', error: true }); });
       else audio.pause();
     } else {
       audio.pause();
@@ -129,247 +91,330 @@ function App() {
     }
   }, [playingTrack, isPlaying, volume]);
 
-  const playTrack = (track: Track) => {
-    if (!track.previewUrl) return;
-    setPlayingTrack(track);
-    setIsPlaying(true);
-    setLibrary(current => ({ ...current, recent: [track, ...current.recent.filter(t => t.id !== track.id)].slice(0, 40) }));
+  const startTrack = (track: JamendoTrack, nextQueue: JamendoTrack[], index: number, savedQueue = false) => {
+    if (!track.streamUrl) { setToast({ text: 'A full stream is not available for this track.', error: true }); return; }
+    setQueue(nextQueue); setQueueIndex(index); setQueueSaved(savedQueue);
+    setPlayingTrack(track); setIsPlaying(true);
+    const metadata = toSaved(track);
+    setLibrary(current => ({ ...current, recent: [metadata, ...current.recent.filter(item => item.id !== track.id)].slice(0, 50) }));
   };
-  const toggleSave = (track: Track) => {
+  const playAt = (index: number) => {
+    const item = queue[index];
+    if (!item) return;
+    if (queueSaved) setPendingTrackId(item.id);
+    else startTrack(item, queue, index);
+  };
+  const playSelection = (track: JamendoTrack, list: JamendoTrack[]) => {
+    const index = Math.max(0, list.findIndex(item => item.id === track.id));
+    startTrack(track, list, index);
+  };
+  const playSavedSelection = (track: SavedTrack, list: SavedTrack[]) => {
+    const items = list.map(item => ({ ...item, streamUrl: '' })) as JamendoTrack[];
+    const index = Math.max(0, items.findIndex(item => item.id === track.id));
+    setQueue(items); setQueueIndex(index); setQueueSaved(true); setPendingTrackId(track.id);
+  };
+  const toggleSave = (track: JamendoTrack | SavedTrack) => {
+    const saved = toSaved(track as JamendoTrack);
     setLibrary(current => ({
       ...current,
-      saved: current.saved.some(t => t.id === track.id) ? current.saved.filter(t => t.id !== track.id) : [track, ...current.saved],
+      saved: current.saved.some(item => item.id === track.id)
+        ? current.saved.filter(item => item.id !== track.id)
+        : [saved, ...current.saved],
     }));
+  };
+  const resolveTrack = (fresh: JamendoTrack) => {
+    setPendingTrackId('');
+    startTrack(fresh, queue, queueIndex, true);
   };
   const navItems = [
     { href: '/', label: 'Discover', icon: Sparkles },
     { href: '/search', label: 'Search', icon: Search },
     { href: '/library', label: 'Your library', icon: Library },
   ];
+  const advance = (direction: number) => {
+    if (!queue.length) return;
+    const next = (queueIndex + direction + queue.length) % queue.length;
+    if (queueSaved) {
+      setQueueIndex(next);
+      setPendingTrackId(queue[next].id);
+    } else playAt(next);
+  };
 
-  return (
-    <div className="app-shell">
-      <div className="ambient" aria-hidden="true" />
-      <div className="app-layout">
-        <aside className="sidebar" aria-label="Main navigation">
-          <Link href="/" className="brand"><span className="brand-mark"><AudioLines size={19} /></span><span>Aurora</span></Link>
-          <div className="nav-caption">Your space</div>
-          <nav className="nav-list">
-            {navItems.map(({ href, label, icon: Icon }) => (
-              <Link key={href} href={href} className={`nav-link ${location === href ? 'active' : ''}`} data-testid={`link-${label.toLowerCase().replaceAll(' ', '-')}`}>
-                <Icon size={17} strokeWidth={1.8} /><span>{label}</span>
-              </Link>
-            ))}
-          </nav>
-          <div className="side-bottom"><strong>A wider world, one song at a time.</strong>Independent discovery, with previews from Apple Music.</div>
-        </aside>
-
-        <main className="main-content">
-          <header className="topbar">
-            <div className="top-links">
-              <Link href="/" className="top-link">Discover</Link>
-              <Link href="/search" className="top-link">Browse all</Link>
-            </div>
-            <div className="top-meta"><span className="live-dot" /> LIVE CHARTS · REGIONAL EDITIONS</div>
-          </header>
-          <Switch>
-            <Route path="/">
-              <DiscoverPage playTrack={playTrack} saved={library.saved} toggleSave={toggleSave} />
-            </Route>
-            <Route path="/search">
-              <SearchPage playTrack={playTrack} saved={library.saved} toggleSave={toggleSave} />
-            </Route>
-            <Route path="/library">
-              <LibraryPage library={library} playTrack={playTrack} toggleSave={toggleSave} />
-            </Route>
-            <Route>
-              <NotFound onHome={() => navigate('/')} />
-            </Route>
-          </Switch>
-        </main>
-      </div>
-      <Player track={playingTrack} playing={isPlaying} setPlaying={setIsPlaying} volume={volume} setVolume={setVolume} audioRef={audioRef} />
+  return <div className="app-shell">
+    <div className="ambient" aria-hidden="true" />
+    <div className="app-layout">
+      <aside className="sidebar" aria-label="Main navigation">
+        <Link href="/" className="brand"><span className="brand-mark"><AudioLines size={19} /></span><span>Aurora</span></Link>
+        <div className="nav-caption">Your listening room</div>
+        <nav className="nav-list">
+          {navItems.map(({ href, label, icon: Icon }) => <Link key={href} href={href} className={`nav-link ${location === href ? 'active' : ''}`} data-testid={`link-${label.toLowerCase().replaceAll(' ', '-')}`}>
+            <Icon size={17} strokeWidth={1.8} /><span>{label}</span>
+          </Link>)}
+        </nav>
+        <div className="side-bottom"><strong>Independent music has no borders.</strong>Full-length listening, shared with care. All discoveries are powered by Jamendo.</div>
+      </aside>
+      <main className="main-content">
+        <header className="topbar">
+          <div className="top-links"><Link href="/" className="top-link">Discover</Link><Link href="/search" className="top-link">Search catalog</Link><Link href="/library" className="top-link">Library</Link></div>
+          <div className="top-meta"><span className="live-dot" /> INDEPENDENT · OPEN TO THE WORLD</div>
+        </header>
+        <Switch>
+          <Route path="/"><DiscoverPage playTrack={playSelection} saved={library.saved} toggleSave={toggleSave} /></Route>
+          <Route path="/search"><SearchPage playTrack={playSelection} saved={library.saved} toggleSave={toggleSave} /></Route>
+          <Route path="/library"><LibraryPage library={library} setLibrary={setLibrary} playTrack={playSavedSelection} toggleSave={toggleSave} /></Route>
+          <Route><NotFound onHome={() => navigate('/')} /></Route>
+        </Switch>
+      </main>
     </div>
-  );
+    {pendingTrackId && <ResolveSavedTrack id={pendingTrackId} onResolved={resolveTrack} onError={message => { setPendingTrackId(''); setToast({ text: message, error: true }); }} />}
+    <Player track={playingTrack} playing={isPlaying} setPlaying={setIsPlaying} volume={volume} setVolume={setVolume} audioRef={audioRef}
+      onNext={() => advance(1)} onPrevious={() => advance(-1)} onEnded={() => advance(1)} onError={() => setToast({ text: 'The audio stream ended unexpectedly. Try replaying the track.', error: true })} />
+    {toast && <div className={`toast ${toast.error ? 'error' : ''}`} role="status">{toast.text}</div>}
+  </div>;
 }
 
-function DiscoverPage({ playTrack, saved, toggleSave }: { playTrack: (t: Track) => void; saved: Track[]; toggleSave: (t: Track) => void }) {
-  const [, navigate] = useLocation();
-  const [country, setCountry] = useState(COUNTRIES[0]);
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const tilt = usePointerTilt();
-
+function ResolveSavedTrack({ id, onResolved, onError }: { id: string; onResolved: (track: JamendoTrack) => void; onError: (message: string) => void }) {
+  const query = useGetJamendoTrack(id, { query: { enabled: Boolean(id), queryKey: getGetJamendoTrackQueryKey(id) } });
+  const resolvedRef = useRef('');
+  const successRef = useRef(onResolved); successRef.current = onResolved;
+  const errorRef = useRef(onError); errorRef.current = onError;
   useEffect(() => {
-    const controller = new AbortController();
-    setLoading(true); setError(''); setTracks([]);
-    fetch(`/api/music/charts?country=${encodeURIComponent(country.code)}`, { signal: controller.signal })
-      .then(response => { if (!response.ok) throw new Error('The chart is temporarily unavailable.'); return response.json(); })
-      .then(data => {
-        if (!Array.isArray(data)) throw new Error('No chart data was returned for this region.');
-        setTracks(data as Track[]);
-        setLoading(false);
-      })
-      .catch(reason => { if (reason.name !== 'AbortError') { setError(reason.message || 'Could not connect to the charts.'); setLoading(false); } });
-    return () => controller.abort();
-  }, [country]);
+    if (query.data && resolvedRef.current !== id) { resolvedRef.current = id; successRef.current(query.data); }
+  }, [query.data, id]);
+  useEffect(() => {
+    if (query.isError) errorRef.current('Could not refresh this saved track. Check your connection and try again.');
+  }, [query.isError, id]);
+  return null;
+}
 
-  const chooseLanguage = (term: string) => navigate(`/search?term=${encodeURIComponent(term)}`);
-
+function DiscoverPage({ playTrack, saved, toggleSave }: { playTrack: (track: JamendoTrack, tracks: JamendoTrack[]) => void; saved: SavedTrack[]; toggleSave: (track: JamendoTrack) => void }) {
+  const tilt = usePointerTilt();
+  const [, navigate] = useLocation();
   return <>
     <section className="hero" style={tilt.style} onPointerMove={tilt.onMove} onPointerLeave={tilt.onLeave} aria-label="Aurora music discovery">
       <div className="hero-copy">
-        <div className="eyebrow">A frequency beyond familiar</div>
+        <div className="eyebrow">A wider world, in full</div>
         <h1>Hear the<br /><span>elsewhere.</span></h1>
-        <p>New favorites don’t have borders. Follow the sound into the charts, languages, and scenes moving right now.</p>
-        <Link href="/search" className="hero-button" data-testid="link-explore-songs"><Play size={14} fill="currentColor" /> Find your next song <ArrowRight size={14} /></Link>
+        <p>Independent voices, full-length tracks. Wander through a living catalog and let the music find its way to you.</p>
+        <Link href="/search" className="hero-button" data-testid="link-explore-songs"><Play size={14} fill="currentColor" /> Search the catalog <ArrowRight size={14} /></Link>
       </div>
       <div className="hero-visual" aria-hidden="true"><div className="orbit" /><div className="orbit" /><div className="orbit" /><div className="orb-core" /></div>
     </section>
-
     <section className="section">
-      <div className="section-head"><div><div className="section-kicker">Sound in motion</div><h2>Regional charts</h2><p>Apple Music’s most-played tracks, by country.</p></div><span className="top-meta"><Activity size={13} /> UPDATED BY APPLE</span></div>
-      <div className="chart-toolbar">
-        <label className="top-meta" htmlFor="country-select"><Globe2 size={14} /> LISTENING IN</label>
-        <select id="country-select" className="country-select" value={country.code} onChange={e => setCountry(COUNTRIES.find(c => c.code === e.target.value) ?? COUNTRIES[0])} data-testid="select-chart-country">
-          {COUNTRIES.map(item => <option key={item.code} value={item.code}>{item.label} · {item.language}</option>)}
-        </select>
-      </div>
-      {loading ? <LoadingGrid /> : error ? <ErrorState message={error} retry={() => setCountry({ ...country })} /> : tracks.length ? <TrackGrid tracks={tracks.slice(0, 10)} playTrack={playTrack} saved={saved} toggleSave={toggleSave} /> : <EmptyState title="No chart tracks yet" message="There are no chart results for this region right now." />}
-      {!loading && !error && tracks.length > 0 && <div style={{ display: 'flex', justifyContent: 'center', marginTop: 20 }}><Link href="/search" className="text-button">Search the full catalog <ArrowRight size={13} /></Link></div>}
+      <div className="section-head"><div><div className="section-kicker">Choose a language</div><h2>Three doors. No borders.</h2><p>Discover independent music through lyric-language tags.</p></div><span className="top-meta"><Globe2 size={13} /> JAMENDO CATALOG</span></div>
+      <div className="language-grid">{LANGUAGES.map(language => <button className="language-tile" key={language.code} onClick={() => navigate(`/search?language=${language.code}`)} data-testid={`button-language-${language.code}`}><strong>{language.label}</strong><span>{language.descriptor}</span></button>)}</div>
     </section>
-
-    <section className="section">
-      <div className="section-head"><div><div className="section-kicker">Choose a direction</div><h2>Find a new frequency</h2><p>Search Apple’s catalog for sounds in another language.</p></div><Link href="/search" className="text-button">All languages <ArrowRight size={13} /></Link></div>
-      <div className="language-grid">
-        {LANGUAGES.map((language, i) => <button className="language-tile" key={language.name} onClick={() => chooseLanguage(language.term)} data-testid={`button-language-${language.name.toLowerCase()}`}><strong>{language.name}</strong><span>{language.note}</span></button>)}
-      </div>
-    </section>
-    <p className="notice" style={{ marginTop: 38 }}>Aurora links to regional chart listings and short Apple Music previews. Availability varies by country.</p>
+    {LANGUAGES.map(language => <LanguageShelf key={language.code} language={language} playTrack={playTrack} saved={saved} toggleSave={toggleSave} />)}
+    <p className="notice" style={{ marginTop: 40 }}>Telugu, Hindi and English categories use Jamendo lyric-language tags; results depend on catalog coverage. Review each track’s license and Jamendo API commercial terms before publishing commercially.</p>
   </>;
 }
 
-function SearchPage({ playTrack, saved, toggleSave }: { playTrack: (t: Track) => void; saved: Track[]; toggleSave: (t: Track) => void }) {
+function LanguageShelf({ language, playTrack, saved, toggleSave }: { language: Language; playTrack: (track: JamendoTrack, tracks: JamendoTrack[]) => void; saved: SavedTrack[]; toggleSave: (track: JamendoTrack) => void }) {
+  const [, navigate] = useLocation();
+  const params = useMemo(() => ({ language: language.code, limit: 10 }), [language.code]);
+  const result = useSearchJamendoTracks(params);
+  const tracks = result.data ?? [];
+  return <section className="section">
+      <div className="section-head"><div><div className="section-kicker">{language.label} listening room</div><h2>{language.descriptor}</h2><p>Full tracks, streamed from the Jamendo catalog.</p></div><button className="text-button" onClick={() => navigate(`/search?language=${language.code}`)}>Explore {language.label} <ArrowRight size={13} /></button></div>
+    {result.isLoading ? <LoadingGrid /> : result.isError ? <ApiError error={result.error} retry={() => void result.refetch()} /> : tracks.length ? <TrackGrid tracks={tracks} playTrack={playTrack} saved={saved} toggleSave={toggleSave} /> : <EmptyState title={`No ${language.label} tracks returned`} message="The Jamendo catalog has no matching tracks for this lyric-language tag right now." />}
+  </section>;
+}
+
+function SearchPage({ playTrack, saved, toggleSave }: { playTrack: (track: JamendoTrack, tracks: JamendoTrack[]) => void; saved: SavedTrack[]; toggleSave: (track: JamendoTrack) => void }) {
   const [location] = useLocation();
-  const initialTerm = new URLSearchParams(window.location.search).get('term') || '';
-  const [term, setTerm] = useState(initialTerm);
-  const [language, setLanguage] = useState('');
-  const [tracks, setTracks] = useState<Track[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [searched, setSearched] = useState(false);
-  const searchController = useRef<AbortController | null>(null);
-
+  const initial = new URLSearchParams(window.location.search);
+  const [term, setTerm] = useState(initial.get('term') || '');
+  const [language, setLanguage] = useState<Lang>((['te', 'hi', 'en'].includes(initial.get('language') || '') ? initial.get('language') : 'en') as Lang);
+  const [submitted, setSubmitted] = useState(false);
+  const [submittedTerm, setSubmittedTerm] = useState('');
   useEffect(() => {
-    const value = new URLSearchParams(window.location.search).get('term');
-    if (value && value !== term) setTerm(value);
-    // Keep this synchronized for language shortcut navigation.
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('term') !== null) setTerm(params.get('term') || '');
+    if (['te', 'hi', 'en'].includes(params.get('language') || '')) setLanguage(params.get('language') as Lang);
   }, [location]);
-
+  const query = useMemo(() => ({ language, term: submittedTerm || undefined, limit: 30 }), [language, submittedTerm]);
+  const result = useSearchJamendoTracks(query, { query: { enabled: submitted, queryKey: getSearchJamendoTracksQueryKey(query) } });
   const search = (event?: FormEvent) => {
     event?.preventDefault();
-    const query = [term.trim(), language].filter(Boolean).join(' ');
-    if (!query) { setTracks([]); setSearched(false); return; }
-    searchController.current?.abort();
-    const controller = new AbortController();
-    searchController.current = controller;
-    setLoading(true); setError(''); setSearched(true);
-    const selectedLanguage = language || LANGUAGES.find(
-      item => item.term.toLowerCase() === term.trim().toLowerCase(),
-    )?.name || '';
-    const country = LANGUAGE_COUNTRIES[selectedLanguage] ?? 'us';
-    fetch(`/api/music/search?term=${encodeURIComponent(query)}&country=${country}&limit=30`, { signal: controller.signal })
-      .then(response => { if (!response.ok) throw new Error('Search is unavailable right now. Try again in a moment.'); return response.json(); })
-      .then(data => { setTracks(Array.isArray(data) ? data as Track[] : []); setLoading(false); })
-      .catch(reason => { if (reason.name !== 'AbortError') { setError(reason.message || 'Could not connect to Apple’s catalog.'); setLoading(false); } });
+    setSubmittedTerm(term.trim());
+    setSubmitted(true);
   };
-
+  const clearSearch = () => { setTerm(''); setSubmittedTerm(''); setSubmitted(false); };
+  const tracks = result.data ?? [];
   return <>
-    <div className="section-kicker">The world is in the search bar</div>
+    <div className="section-kicker">The world is in the search field</div>
     <h1 className="page-title">Find your next<br />favorite sound.</h1>
-    <p className="page-intro">Search Apple’s music catalog by artist, song, or scene. Choose a language to make the discovery more specific.</p>
+    <p className="page-intro">Search Jamendo by song title or artist, then narrow the room by lyric language. Every result can play in full.</p>
     <form className="search-panel" onSubmit={search}>
-      <div className="search-field"><Search size={17} className="search-icon" /><input className="search-input" value={term} onChange={e => setTerm(e.target.value)} placeholder="Try a song, artist, or genre" aria-label="Search songs and artists" data-testid="input-search" /></div>
-      <select className="filter-select" value={language} onChange={e => setLanguage(e.target.value)} aria-label="Filter by language" data-testid="select-language-filter">
-        <option value="">Any language</option>
-        {LANGUAGES.map(item => <option key={item.name} value={item.name}>{item.name}</option>)}
+      <div className="search-field"><Search size={17} className="search-icon" /><input className="search-input" value={term} onChange={event => setTerm(event.target.value)} placeholder="Try a song title or artist" aria-label="Search songs and artists" data-testid="input-search" /></div>
+      <select className="filter-select" value={language} onChange={event => setLanguage(event.target.value as Lang)} aria-label="Filter by language" data-testid="select-language-filter">
+        {LANGUAGES.map(item => <option key={item.code} value={item.code}>{item.label}</option>)}
       </select>
       <button className="button-primary" type="submit" data-testid="button-search"><Search size={14} /> Search</button>
     </form>
-    <p className="notice">Search results and preview availability reflect Apple’s catalog in your region.</p>
-    <div className="search-results-head">{searched ? `${tracks.length} SONGS FOUND` : 'READY WHEN YOU ARE'}</div>
-    {loading ? <LoadingGrid /> : error ? <ErrorState message={error} retry={() => search()} /> : searched && tracks.length ? <TrackGrid tracks={tracks} playTrack={playTrack} saved={saved} toggleSave={toggleSave} /> : searched ? <EmptyState title="Nothing in this frequency" message="Try a different spelling, artist, or language filter." action={<button className="text-button" onClick={() => { setTerm(''); setLanguage(''); setSearched(false); }}>Clear search <X size={13} /></button>} /> : <div className="empty-state"><div className="empty-icon"><Globe2 size={20} /></div><h3>Somewhere new is one search away</h3><p>Search a phrase above, or jump into a region to begin.</p><div className="language-grid" style={{ width: '100%', maxWidth: 600, marginTop: 14 }}>{LANGUAGES.slice(0, 4).map(item => <button key={item.name} className="language-tile" onClick={() => { setTerm(item.term); setLanguage(''); setTimeout(() => { const input = document.querySelector<HTMLInputElement>('[data-testid="input-search"]'); input?.focus(); }, 0); }}><strong>{item.name}</strong><span>{item.note}</span></button>)}</div></div>}
+    <p className="notice">Language filters use Jamendo lyric-language tags; catalog coverage varies by language.</p>
+    <div className="search-results-head">{submitted ? `${tracks.length} TRACKS FOUND` : 'READY WHEN YOU ARE'}</div>
+    {result.isLoading && submitted ? <LoadingGrid /> : result.isError && submitted ? <ApiError error={result.error} retry={() => void result.refetch()} /> :
+      submitted && tracks.length > 0 ? <TrackGrid tracks={tracks} playTrack={playTrack} saved={saved} toggleSave={toggleSave} /> :
+      submitted ? <EmptyState title="No tracks in this frequency" message="Try another spelling or choose a different language tag." action={<button className="text-button" onClick={clearSearch}>Clear search <X size={13} /></button>} /> :
+      <div className="empty-state"><div className="empty-icon"><Globe2 size={20} /></div><h3>Somewhere new is one search away</h3><p>Search by title or artist. Start with a language that feels like home.</p><div className="language-grid" style={{ width: '100%', maxWidth: 700, marginTop: 14 }}>{LANGUAGES.map(item => <button key={item.code} className="language-tile" onClick={() => setLanguage(item.code)}><strong>{item.label}</strong><span>{item.prompt}</span></button>)}</div></div>}
   </>;
 }
 
-function LibraryPage({ library, playTrack, toggleSave }: { library: SavedData; playTrack: (t: Track) => void; toggleSave: (t: Track) => void }) {
-  const [tab, setTab] = useState<'saved' | 'recent'>('saved');
-  const tracks = tab === 'saved' ? library.saved : library.recent;
+function LibraryPage({ library, setLibrary, playTrack, toggleSave }: { library: LibraryData; setLibrary: (updater: (value: LibraryData) => LibraryData) => void; playTrack: (track: SavedTrack, tracks: SavedTrack[]) => void; toggleSave: (track: JamendoTrack | SavedTrack) => void }) {
+  const [tab, setTab] = useState<'saved' | 'recent' | 'playlists'>('saved');
+  const [name, setName] = useState('');
+  const [selectedId, setSelectedId] = useState('');
+  const selectedPlaylist = library.playlists.find(item => item.id === selectedId);
+  const tracks = tab === 'saved' ? library.saved : tab === 'recent' ? library.recent : (selectedPlaylist?.tracks ?? []);
+  const createPlaylist = (event: FormEvent) => {
+    event.preventDefault();
+    const cleanName = name.trim();
+    if (!cleanName) return;
+    const playlist = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, name: cleanName, tracks: [] };
+    setLibrary(current => ({ ...current, playlists: [playlist, ...current.playlists] }));
+    setSelectedId(playlist.id); setName(''); setTab('playlists');
+  };
+  const deletePlaylist = () => {
+    if (!selectedPlaylist || !window.confirm(`Delete “${selectedPlaylist.name}”?`)) return;
+    setLibrary(current => ({ ...current, playlists: current.playlists.filter(item => item.id !== selectedPlaylist.id) }));
+    setSelectedId('');
+  };
+  const removeFromPlaylist = (id: string) => {
+    if (!selectedPlaylist) return;
+    setLibrary(current => ({ ...current, playlists: current.playlists.map(item => item.id === selectedPlaylist.id ? { ...item, tracks: item.tracks.filter(track => track.id !== id) } : item) }));
+  };
+  const addSavedToPlaylist = (track: SavedTrack) => {
+    if (!selectedPlaylist || selectedPlaylist.tracks.some(item => item.id === track.id)) return;
+    setLibrary(current => ({ ...current, playlists: current.playlists.map(item => item.id === selectedPlaylist.id ? { ...item, tracks: [track, ...item.tracks] } : item) }));
+  };
   return <>
     <div className="section-kicker">Your listening, held close</div>
     <h1 className="page-title">A place for<br />what stays.</h1>
-    <p className="page-intro">Saved songs and recent spins live on this device. Your collection stays yours.</p>
+    <p className="page-intro">Favorites, recent spins, and playlists live only in this browser. No account, no database, no audio stored offline.</p>
     <div className="tabs" role="tablist" aria-label="Library views">
-      <button className={`tab ${tab === 'saved' ? 'active' : ''}`} role="tab" aria-selected={tab === 'saved'} onClick={() => setTab('saved')} data-testid="tab-saved"><Bookmark size={13} style={{ verticalAlign: 'middle', marginRight: 6 }} />Saved tracks <span>({library.saved.length})</span></button>
-      <button className={`tab ${tab === 'recent' ? 'active' : ''}`} role="tab" aria-selected={tab === 'recent'} onClick={() => setTab('recent')} data-testid="tab-recent"><Activity size={13} style={{ verticalAlign: 'middle', marginRight: 6 }} />Recently played <span>({library.recent.length})</span></button>
+      <button className={`tab ${tab === 'saved' ? 'active' : ''}`} role="tab" aria-selected={tab === 'saved'} onClick={() => setTab('saved')} data-testid="tab-saved"><Bookmark size={13} /> Saved <span>({library.saved.length})</span></button>
+      <button className={`tab ${tab === 'recent' ? 'active' : ''}`} role="tab" aria-selected={tab === 'recent'} onClick={() => setTab('recent')} data-testid="tab-recent"><Activity size={13} /> Recently played <span>({library.recent.length})</span></button>
+      <button className={`tab ${tab === 'playlists' ? 'active' : ''}`} role="tab" aria-selected={tab === 'playlists'} onClick={() => setTab('playlists')} data-testid="tab-playlists"><ListMusic size={13} /> Playlists <span>({library.playlists.length})</span></button>
     </div>
-    {tracks.length ? <TrackGrid tracks={tracks} playTrack={playTrack} saved={library.saved} toggleSave={toggleSave} /> : <EmptyState title={tab === 'saved' ? 'Keep a song close' : 'Your first listen is waiting'} message={tab === 'saved' ? 'Save tracks as you discover them and they’ll find a home here.' : 'Play a preview and your recent listening will appear here.'} action={<Link href="/search" className="text-button">Explore songs <ArrowRight size={13} /></Link>} />}
-    <p className="notice" style={{ marginTop: 24 }}>Stored only in this browser. Clearing site data removes your library.</p>
+    {tab === 'playlists' && <section className="playlist-panel">
+      <form className="playlist-form" onSubmit={createPlaylist}><input value={name} onChange={event => setName(event.target.value)} placeholder="Name a new playlist" aria-label="New playlist name" maxLength={48} data-testid="input-playlist-name" /><button className="button-primary" type="submit" disabled={!name.trim()}><Plus size={14} /> Create</button></form>
+      {library.playlists.length > 0 && <div className="playlist-head">
+        <select aria-label="Choose a playlist" value={selectedId} onChange={event => setSelectedId(event.target.value)} data-testid="select-playlist">
+          <option value="">Choose a playlist</option>{library.playlists.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        {selectedPlaylist && <><span className="tag-pill">{selectedPlaylist.tracks.length} tracks</span><div className="playlist-actions"><button onClick={deletePlaylist} data-testid="button-delete-playlist"><Trash2 size={13} /> Delete playlist</button></div></>}
+      </div>}
+      {selectedPlaylist && library.saved.length > 0 && <div className="playlist-head" style={{ marginTop: 15 }}><span className="notice">Add a favorite to this playlist</span><select aria-label="Add saved track to playlist" value="" onChange={event => { const found = library.saved.find(item => item.id === event.target.value); if (found) addSavedToPlaylist(found); }}><option value="">Choose saved track</option>{library.saved.filter(item => !selectedPlaylist.tracks.some(track => track.id === item.id)).map(item => <option key={item.id} value={item.id}>{item.title} — {item.artist}</option>)}</select></div>}
+    </section>}
+    {tracks.length ? <TrackRows tracks={tracks} playTrack={playTrack} saved={library.saved} toggleSave={toggleSave} onRemove={tab === 'playlists' ? removeFromPlaylist : undefined} onAdd={tab === 'saved' && selectedPlaylist ? addSavedToPlaylist : undefined} /> :
+      <EmptyState title={tab === 'saved' ? 'Keep a song close' : tab === 'recent' ? 'Your first listen is waiting' : selectedPlaylist ? 'A playlist with room to grow' : 'Make a listening list'} message={tab === 'saved' ? 'Save tracks as you discover them and they’ll find a home here.' : tab === 'recent' ? 'Play a full track and your recent listening will appear here.' : selectedPlaylist ? 'Add saved tracks to build this playlist.' : 'Create a playlist to gather songs around a feeling, place, or moment.'} action={tab !== 'playlists' ? <Link href="/search" className="text-button">Explore the catalog <ArrowRight size={13} /></Link> : undefined} />}
+    <p className="notice" style={{ marginTop: 24 }}>Saved song metadata only. Stream links are refreshed from the Jamendo app API whenever you play a saved track. Clearing site data removes this library.</p>
   </>;
 }
 
-function TrackGrid({ tracks, playTrack, saved, toggleSave }: { tracks: Track[]; playTrack: (t: Track) => void; saved: Track[]; toggleSave: (t: Track) => void }) {
-  return <div className="track-grid">
-    {tracks.map((track, index) => {
-      const isSaved = saved.some(item => item.id === track.id);
-      return <article className="track-card" key={`${track.id}-${index}`} data-testid={`card-track-${track.id}`}>
-        <div className="artwork">
-          {track.artworkUrl ? <img src={track.artworkUrl} alt={`${track.album} artwork`} loading="lazy" /> : <div className="art-fallback"><Disc3 size={35} /></div>}
-          <button className={`save-button ${isSaved ? 'saved' : ''}`} onClick={() => toggleSave(track)} aria-label={isSaved ? `Remove ${track.title} from saved tracks` : `Save ${track.title}`} title={isSaved ? 'Remove from saved' : 'Save track'} data-testid={`button-save-${track.id}`}>{isSaved ? <Check size={14} /> : <Heart size={14} />}</button>
-          <button className="art-play" onClick={() => playTrack(track)} disabled={!track.previewUrl} aria-label={track.previewUrl ? `Play preview of ${track.title}` : `${track.title} preview unavailable`} title={track.previewUrl ? 'Play preview' : 'Preview unavailable in this regional chart'} data-testid={`button-play-${track.id}`}><Play size={15} fill="currentColor" /></button>
-        </div>
-        <div className="track-info"><div className="track-title" title={track.title}>{track.title}</div><div className="track-artist" title={track.artist}>{track.artist}</div><div className="track-meta"><span>{track.genre}</span><span>{formatTime(track.durationMs)}</span></div></div>
-      </article>;
-    })}
+function TrackGrid({ tracks, playTrack, saved, toggleSave }: { tracks: JamendoTrack[]; playTrack: (track: JamendoTrack, tracks: JamendoTrack[]) => void; saved: SavedTrack[]; toggleSave: (track: JamendoTrack) => void }) {
+  const download = usePrepareJamendoDownload();
+  const [downloadMessage, setDownloadMessage] = useState('');
+  const prepareDownload = (id: string) => {
+    setDownloadMessage('');
+    download.mutate({ id }, {
+      onSuccess: result => {
+        const anchor = document.createElement('a');
+        anchor.href = result.downloadUrl; anchor.rel = 'noreferrer'; anchor.download = '';
+        document.body.appendChild(anchor); anchor.click(); anchor.remove();
+      },
+      onError: () => setDownloadMessage('Jamendo could not verify download permission for this track.'),
+    });
+  };
+  return <>{downloadMessage && <div className="api-config" role="alert">{downloadMessage}</div>}<div className="track-grid">{tracks.map(track => {
+    const isSaved = saved.some(item => item.id === track.id);
+    return <article className="track-card" key={track.id} data-testid={`card-track-${track.id}`}>
+      <div className="artwork">{track.artworkUrl ? <img src={track.artworkUrl} alt={`${track.album || track.title} artwork`} loading="lazy" /> : <div className="art-fallback"><Disc3 size={35} /></div>}
+        <button className={`save-button ${isSaved ? 'saved' : ''}`} onClick={() => toggleSave(track)} aria-label={isSaved ? `Remove ${track.title} from favorites` : `Save ${track.title}`} title={isSaved ? 'Remove from favorites' : 'Save track'} data-testid={`button-save-${track.id}`}>{isSaved ? <Check size={14} /> : <Heart size={14} />}</button>
+        <button className="art-play" onClick={() => playTrack(track, tracks)} aria-label={`Play ${track.title}`} title="Play full track" data-testid={`button-play-${track.id}`}><Play size={15} fill="currentColor" /></button>
+        {track.downloadAllowed && <button className="card-download" onClick={() => prepareDownload(track.id)} disabled={download.isPending} aria-label={`Download ${track.title}`} title="Download permitted track"><Download size={14} /></button>}
+      </div>
+      <div className="track-info"><div className="track-title" title={track.title}>{track.title}</div><div className="track-artist" title={track.artist}>{track.artist}</div><div className="track-meta"><span>{track.genre || track.language || 'Jamendo'}</span><span>{formatTime(track.durationSeconds)}</span></div>
+        <div className="track-card-links"><a href={track.trackUrl} target="_blank" rel="noreferrer">Track page <ExternalLink size={10} /></a><a href={track.licenseUrl} target="_blank" rel="noreferrer">License <ExternalLink size={10} /></a></div>
+      </div>
+    </article>;
+  })}</div></>;
+}
+
+function TrackRows({ tracks, playTrack, saved, toggleSave, onRemove, onAdd }: { tracks: SavedTrack[]; playTrack: (track: SavedTrack, tracks: SavedTrack[]) => void; saved: SavedTrack[]; toggleSave: (track: JamendoTrack | SavedTrack) => void; onRemove?: (id: string) => void; onAdd?: (track: SavedTrack) => void }) {
+  const download = usePrepareJamendoDownload();
+  const [downloadError, setDownloadError] = useState('');
+  const startDownload = (track: SavedTrack) => {
+    setDownloadError('');
+    download.mutate({ id: track.id }, {
+      onSuccess: result => {
+        const anchor = document.createElement('a');
+        anchor.href = result.downloadUrl; anchor.rel = 'noreferrer'; anchor.download = '';
+        document.body.appendChild(anchor); anchor.click(); anchor.remove();
+      },
+      onError: () => setDownloadError('Jamendo could not verify download permission for this track.'),
+    });
+  };
+  return <div className="track-rows">
+    {downloadError && <div className="api-config" role="alert">{downloadError}</div>}
+    {tracks.map((track, index) => <article className="track-row" key={`${track.id}-${index}`} data-testid={`row-track-${track.id}`}>
+      {track.artworkUrl ? <img src={track.artworkUrl} alt="" loading="lazy" /> : <div className="row-art art-fallback"><Disc3 size={20} /></div>}
+      <div className="track-row-copy"><strong>{track.title}</strong><span>{track.artist}{track.album ? ` · ${track.album}` : ''} · {formatTime(track.durationSeconds)}</span><div className="track-detail-links"><a href={track.trackUrl} target="_blank" rel="noreferrer">Jamendo track page</a><a href={track.licenseUrl} target="_blank" rel="noreferrer">License details</a></div></div>
+      <div className="row-actions">
+        <button className="icon-button" onClick={() => playTrack(track, tracks)} aria-label={`Play ${track.title}`} title="Play full track"><Play size={15} /></button>
+        <button className={`icon-button ${saved.some(item => item.id === track.id) ? 'saved' : ''}`} onClick={() => toggleSave(track)} aria-label="Toggle favorite" title="Toggle favorite"><Heart size={15} /></button>
+        {track.downloadAllowed && <button className="icon-button" onClick={() => startDownload(track)} disabled={download.isPending} aria-label={`Download ${track.title}`} title={download.isPending ? 'Preparing download' : 'Download permitted track'}><Download size={15} /></button>}
+        {onAdd && <button className="icon-button" onClick={() => onAdd(track)} aria-label="Add to selected playlist" title="Add to selected playlist"><Plus size={15} /></button>}
+        {onRemove && <button className="icon-button" onClick={() => onRemove(track.id)} aria-label="Remove from playlist" title="Remove from playlist"><X size={15} /></button>}
+      </div>
+    </article>)}
+    <div className="notice" style={{ marginTop: 13 }}>Jamendo attribution: verify each track’s license terms before reuse or redistribution.</div>
   </div>;
 }
 
 function LoadingGrid() {
-  return <div className="loading-state" role="status" aria-label="Loading songs">{Array.from({ length: 5 }, (_, i) => <div className="skeleton" key={i} />)}</div>;
+  return <div className="loading-state" role="status" aria-label="Loading Jamendo tracks">{Array.from({ length: 5 }, (_, index) => <div className="skeleton" key={index}><div className="skeleton-line" /><div className="skeleton-line short" /></div>)}</div>;
 }
-
 function EmptyState({ title, message, action }: { title: string; message: string; action?: ReactNode }) {
   return <div className="empty-state"><div className="empty-icon"><Music2 size={20} /></div><h3>{title}</h3><p>{message}</p>{action}</div>;
 }
-
-function ErrorState({ message, retry }: { message: string; retry: () => void }) {
-  return <div className="error-state" role="alert"><div className="empty-icon"><Radio size={20} /></div><h3>Signal dropped</h3><p>{message} Check your connection and try again.</p><button className="text-button" onClick={retry} data-testid="button-retry"><RotateCcw size={13} /> Try again</button></div>;
+function ApiError({ error, retry }: { error: unknown; retry: () => void }) {
+  const message = error instanceof Error ? error.message : '';
+  const configuration = /config|credential|client.?id|jamendo.*(key|id)|not configured/i.test(message);
+  return configuration ? <div className="api-config" role="alert"><strong>Jamendo connection needs configuration.</strong> The app API could not provide catalog results. Check the Jamendo API setup on the server, then retry.</div> :
+    <div className="error-state" role="alert"><div className="empty-icon"><Radio size={20} /></div><h3>Signal dropped</h3><p>The Jamendo service could not be reached. Your local library is safe; try the catalog again.</p><button className="text-button" onClick={retry} data-testid="button-retry"><RotateCcw size={13} /> Try again</button></div>;
 }
-
-function Player({ track, playing, setPlaying, volume, setVolume, audioRef }: { track: Track | null; playing: boolean; setPlaying: (v: boolean) => void; volume: number; setVolume: (v: number) => void; audioRef: { current: HTMLAudioElement | null } }) {
+function Player({ track, playing, setPlaying, volume, setVolume, audioRef, onNext, onPrevious, onEnded, onError }: { track: JamendoTrack | null; playing: boolean; setPlaying: (value: boolean) => void; volume: number; setVolume: (value: number) => void; audioRef: { current: HTMLAudioElement | null }; onNext: () => void; onPrevious: () => void; onEnded: () => void; onError: () => void }) {
   const [duration, setDuration] = useState(0);
   const [current, setCurrent] = useState(0);
   const [muted, setMuted] = useState(false);
-  useEffect(() => { setCurrent(0); setDuration(track?.durationMs ? track.durationMs / 1000 : 30); }, [track]);
+  const [audioError, setAudioError] = useState(false);
+  useEffect(() => { setCurrent(0); setAudioError(false); setDuration(track?.durationSeconds || 0); }, [track]);
   return <>
-    <audio ref={audioRef} onTimeUpdate={event => setCurrent(event.currentTarget.currentTime)} onLoadedMetadata={event => setDuration(event.currentTarget.duration)} onEnded={() => setPlaying(false)} />
-    <footer className="player" aria-label="Music preview player">
+    <audio ref={audioRef} preload="none" onTimeUpdate={event => setCurrent(event.currentTarget.currentTime)} onLoadedMetadata={event => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : track?.durationSeconds || 0)} onEnded={onEnded} onError={() => { setAudioError(true); setPlaying(false); onError(); }} />
+    <footer className="player" aria-label="Full track audio player">
       <div className="player-track">
         {track?.artworkUrl ? <img className="player-cover" src={track.artworkUrl} alt="" /> : <div className="player-cover art-fallback"><Disc3 size={19} /></div>}
-        <div className="player-track-text">{track ? <><strong>{track.title}</strong><span>{track.artist}</span></> : <><strong>Choose a frequency</strong><span>Apple Music preview player</span></>}</div>
+        <div className="player-track-text">{track ? <><strong>{track.title}</strong><span>{track.artist}{track.album ? ` · ${track.album}` : ''}</span></> : <><strong>Choose a frequency</strong><span>Full tracks from Jamendo</span></>}</div>
       </div>
       <div className="player-main">
         <div className="player-controls">
-          <button className="play-main" onClick={() => setPlaying(!playing)} disabled={!track?.previewUrl} aria-label={playing ? 'Pause preview' : 'Play preview'} data-testid="button-player-toggle">{playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}</button>
+          <button className="icon-button skip-control" onClick={onPrevious} disabled={!track} aria-label="Previous track" data-testid="button-previous"><SkipBack size={15} /></button>
+          <button className="play-main" onClick={() => setPlaying(!playing)} disabled={!track} aria-label={playing ? 'Pause track' : 'Play track'} data-testid="button-player-toggle">{playing ? <Pause size={15} fill="currentColor" /> : <Play size={15} fill="currentColor" />}</button>
+          <button className="icon-button skip-control" onClick={onNext} disabled={!track} aria-label="Next track" data-testid="button-next"><SkipForward size={15} /></button>
         </div>
-        <div className="progress-row"><span>{formatTime(current * 1000)}</span><input className="progress-range" type="range" min="0" max={duration || 30} step=".1" value={Math.min(current, duration || 30)} aria-label="Preview position" onChange={e => { if (audioRef.current) audioRef.current.currentTime = Number(e.target.value); }} /><span>{formatTime(duration * 1000)}</span></div>
+        <div className="progress-row"><span>{formatTime(current)}</span><input className="progress-range" type="range" min="0" max={duration || 1} step=".1" value={Math.min(current, duration || 1)} aria-label="Track position" onChange={event => { if (audioRef.current) audioRef.current.currentTime = Number(event.target.value); }} disabled={!track} /><span>{formatTime(duration)}</span></div>
       </div>
-      <div className="player-volume"><button className="icon-button" aria-label={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); if (audioRef.current) audioRef.current.muted = !muted; }}><Volume2 size={16} /></button><input type="range" min="0" max="1" step=".01" value={volume} aria-label="Volume" onChange={e => setVolume(Number(e.target.value))} /></div>
+      <div className="player-volume">
+        <button className="icon-button" aria-label={muted ? 'Unmute' : 'Mute'} onClick={() => { setMuted(!muted); if (audioRef.current) audioRef.current.muted = !muted; }}><Volume2 size={16} /></button>
+        <input type="range" min="0" max="1" step=".01" value={volume} aria-label="Volume" onChange={event => setVolume(Number(event.target.value))} />
+        {track && <div className="player-links"><a href={track.trackUrl} target="_blank" rel="noreferrer">Jamendo track</a><a href={track.licenseUrl} target="_blank" rel="noreferrer">CC license</a></div>}
+      </div>
+      {audioError && <span className="player-error">Stream unavailable</span>}
     </footer>
   </>;
 }
-
 function NotFound({ onHome }: { onHome: () => void }) {
   return <div className="empty-state" style={{ marginTop: 70 }}><div className="empty-icon"><Headphones size={20} /></div><h3>This track isn’t on the map</h3><p>That page drifted out of range. Let’s tune back in.</p><button className="button-primary" onClick={onHome}><ArrowLeft size={14} /> Back to discovery</button></div>;
 }

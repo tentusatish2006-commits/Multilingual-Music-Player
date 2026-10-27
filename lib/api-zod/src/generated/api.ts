@@ -18,57 +18,76 @@ export const HealthCheckResponse = zod.object({
 
 
 /**
- * @summary Get a regional music chart
+ * @summary Search Jamendo tracks by lyric language and query
  */
-export const getMusicChartsQueryCountryRegExp = new RegExp('^[a-z]{2}$');
+export const searchJamendoTracksQueryTermMax = 120;
+
+export const searchJamendoTracksQueryLimitDefault = 24;
+export const searchJamendoTracksQueryLimitMax = 50;
 
 
-export const GetMusicChartsQueryParams = zod.object({
-  "country": zod.coerce.string().regex(getMusicChartsQueryCountryRegExp)
+
+export const SearchJamendoTracksQueryParams = zod.object({
+  "language": zod.enum(['te', 'hi', 'en']),
+  "term": zod.coerce.string().max(searchJamendoTracksQueryTermMax).optional(),
+  "limit": zod.coerce.number().int().min(1).max(searchJamendoTracksQueryLimitMax).default(searchJamendoTracksQueryLimitDefault)
 })
 
-export const GetMusicChartsResponseItem = zod.object({
+export const SearchJamendoTracksResponseItem = zod.object({
   "id": zod.string(),
   "title": zod.string(),
   "artist": zod.string(),
   "album": zod.string(),
   "artworkUrl": zod.string(),
-  "previewUrl": zod.string().nullable(),
-  "durationMs": zod.number().int(),
-  "releaseDate": zod.string().nullable(),
-  "genre": zod.string()
+  "streamUrl": zod.string(),
+  "durationSeconds": zod.number().int(),
+  "genre": zod.string(),
+  "language": zod.string(),
+  "licenseUrl": zod.string(),
+  "trackUrl": zod.string(),
+  "downloadAllowed": zod.boolean()
 })
-export const GetMusicChartsResponse = zod.array(GetMusicChartsResponseItem)
+export const SearchJamendoTracksResponse = zod.array(SearchJamendoTracksResponseItem)
 
 
 /**
- * @summary Search the music catalog
+ * @summary Get a current stream URL for a saved track
  */
-export const searchMusicQueryTermMax = 120;
-
-export const searchMusicQueryCountryRegExp = new RegExp('^[a-z]{2}$');
-export const searchMusicQueryLimitDefault = 30;
-export const searchMusicQueryLimitMax = 50;
+export const getJamendoTrackPathIdRegExp = new RegExp('^[0-9]+$');
 
 
-
-export const SearchMusicQueryParams = zod.object({
-  "term": zod.coerce.string().min(1).max(searchMusicQueryTermMax),
-  "country": zod.coerce.string().regex(searchMusicQueryCountryRegExp).optional(),
-  "limit": zod.coerce.number().int().min(1).max(searchMusicQueryLimitMax).default(searchMusicQueryLimitDefault)
+export const GetJamendoTrackParams = zod.object({
+  "id": zod.coerce.string().regex(getJamendoTrackPathIdRegExp)
 })
 
-export const SearchMusicResponseItem = zod.object({
+export const GetJamendoTrackResponse = zod.object({
   "id": zod.string(),
   "title": zod.string(),
   "artist": zod.string(),
   "album": zod.string(),
   "artworkUrl": zod.string(),
-  "previewUrl": zod.string().nullable(),
-  "durationMs": zod.number().int(),
-  "releaseDate": zod.string().nullable(),
-  "genre": zod.string()
+  "streamUrl": zod.string(),
+  "durationSeconds": zod.number().int(),
+  "genre": zod.string(),
+  "language": zod.string(),
+  "licenseUrl": zod.string(),
+  "trackUrl": zod.string(),
+  "downloadAllowed": zod.boolean()
 })
-export const SearchMusicResponse = zod.array(SearchMusicResponseItem)
+
+
+/**
+ * @summary Download a track only when Jamendo allows it
+ */
+export const prepareJamendoDownloadPathIdRegExp = new RegExp('^[0-9]+$');
+
+
+export const PrepareJamendoDownloadParams = zod.object({
+  "id": zod.coerce.string().regex(prepareJamendoDownloadPathIdRegExp)
+})
+
+export const PrepareJamendoDownloadResponse = zod.object({
+  "downloadUrl": zod.string()
+})
 
 

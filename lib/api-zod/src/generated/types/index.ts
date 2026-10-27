@@ -6,7 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export * from './getMusicChartsParams';
 export * from './healthStatus';
-export * from './musicTrack';
-export * from './searchMusicParams';
+export * from './jamendoDownload';
+export * from './jamendoTrack';
+export * from './searchJamendoTracksLanguage';
+export * from './searchJamendoTracksParams';

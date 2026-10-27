@@ -9,41 +9,44 @@ export interface HealthStatus {
   status: string;
 }
 
-export interface MusicTrack {
+export interface JamendoTrack {
   id: string;
   title: string;
   artist: string;
   album: string;
   artworkUrl: string;
-  /** @nullable */
-  previewUrl: string | null;
-  durationMs: number;
-  /** @nullable */
-  releaseDate: string | null;
+  streamUrl: string;
+  durationSeconds: number;
   genre: string;
+  language: string;
+  licenseUrl: string;
+  trackUrl: string;
+  downloadAllowed: boolean;
 }
 
-export type GetMusicChartsParams = {
-/**
- * @pattern ^[a-z]{2}$
- */
-country: string;
-};
+export interface JamendoDownload {
+  downloadUrl: string;
+}
 
-export type SearchMusicParams = {
+export type SearchJamendoTracksParams = {
+language: SearchJamendoTracksLanguage;
 /**
- * @minLength 1
  * @maxLength 120
  */
-term: string;
-/**
- * @pattern ^[a-z]{2}$
- */
-country?: string;
+term?: string;
 /**
  * @minimum 1
  * @maximum 50
  */
 limit?: number;
 };
+
+export type SearchJamendoTracksLanguage = typeof SearchJamendoTracksLanguage[keyof typeof SearchJamendoTracksLanguage];
+
+
+export const SearchJamendoTracksLanguage = {
+  te: 'te',
+  hi: 'hi',
+  en: 'en',
+} as const;
 

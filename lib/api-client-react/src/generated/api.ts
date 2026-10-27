@@ -6,20 +6,24 @@
  * OpenAPI spec version: 0.1.0
  */
 import {
+  useMutation,
   useQuery
 } from '@tanstack/react-query';
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult
 } from '@tanstack/react-query';
 
 import type {
-  GetMusicChartsParams,
   HealthStatus,
-  MusicTrack,
-  SearchMusicParams
+  JamendoDownload,
+  JamendoTrack,
+  SearchJamendoTracksParams
 } from './api.schemas';
 
 import { customFetch } from '../custom-fetch';
@@ -127,7 +131,7 @@ export function useHealthCheck<TData = Awaited<ReturnType<typeof healthCheck>>, 
 
 
 
-export const getGetMusicChartsUrl = (params: GetMusicChartsParams,) => {
+export const getSearchJamendoTracksUrl = (params: SearchJamendoTracksParams,) => {
   const normalizedParams = new URLSearchParams();
 
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -139,15 +143,15 @@ export const getGetMusicChartsUrl = (params: GetMusicChartsParams,) => {
 
   const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/api/music/charts?${stringifiedParams}` : `/api/music/charts`
+  return stringifiedParams.length > 0 ? `/api/music/tracks?${stringifiedParams}` : `/api/music/tracks`
 }
 
 /**
- * @summary Get a regional music chart
+ * @summary Search Jamendo tracks by lyric language and query
  */
-export const getMusicCharts = async (params: GetMusicChartsParams, options?: Parameters<typeof customFetch>[1]): Promise<MusicTrack[]> => {
+export const searchJamendoTracks = async (params: SearchJamendoTracksParams, options?: Parameters<typeof customFetch>[1]): Promise<JamendoTrack[]> => {
 
-  return customFetch<MusicTrack[]>(getGetMusicChartsUrl(params),
+  return customFetch<JamendoTrack[]>(getSearchJamendoTracksUrl(params),
   {
     ...options,
     method: 'GET'
@@ -160,45 +164,45 @@ export const getMusicCharts = async (params: GetMusicChartsParams, options?: Par
 
 
 
-export const getGetMusicChartsQueryKey = (params?: GetMusicChartsParams,) => {
+export const getSearchJamendoTracksQueryKey = (params?: SearchJamendoTracksParams,) => {
     return [
-    `/api/music/charts`, ...(params ? [params] : [])
+    `/api/music/tracks`, ...(params ? [params] : [])
     ] as const;
     }
 
 
-export const getGetMusicChartsQueryOptions = <TData = Awaited<ReturnType<typeof getMusicCharts>>, TError = ErrorType<void>>(params: GetMusicChartsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMusicCharts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getSearchJamendoTracksQueryOptions = <TData = Awaited<ReturnType<typeof searchJamendoTracks>>, TError = ErrorType<void>>(params: SearchJamendoTracksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchJamendoTracks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getGetMusicChartsQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getSearchJamendoTracksQueryKey(params);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof getMusicCharts>>> = ({ signal }) => getMusicCharts(params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchJamendoTracks>>> = ({ signal }) => searchJamendoTracks(params, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getMusicCharts>>, TError, TData> & { queryKey: QueryKey }
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchJamendoTracks>>, TError, TData> & { queryKey: QueryKey }
 }
 
-export type GetMusicChartsQueryResult = NonNullable<Awaited<ReturnType<typeof getMusicCharts>>>
-export type GetMusicChartsQueryError = ErrorType<void>
+export type SearchJamendoTracksQueryResult = NonNullable<Awaited<ReturnType<typeof searchJamendoTracks>>>
+export type SearchJamendoTracksQueryError = ErrorType<void>
 
 
 /**
- * @summary Get a regional music chart
+ * @summary Search Jamendo tracks by lyric language and query
  */
 
-export function useGetMusicCharts<TData = Awaited<ReturnType<typeof getMusicCharts>>, TError = ErrorType<void>>(
- params: GetMusicChartsParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getMusicCharts>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export function useSearchJamendoTracks<TData = Awaited<ReturnType<typeof searchJamendoTracks>>, TError = ErrorType<void>>(
+ params: SearchJamendoTracksParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchJamendoTracks>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getGetMusicChartsQueryOptions(params,options)
+  const queryOptions = getSearchJamendoTracksQueryOptions(params,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -211,27 +215,20 @@ export function useGetMusicCharts<TData = Awaited<ReturnType<typeof getMusicChar
 
 
 
-export const getSearchMusicUrl = (params: SearchMusicParams,) => {
-  const normalizedParams = new URLSearchParams();
+export const getGetJamendoTrackUrl = (id: string,) => {
 
-  Object.entries(params || {}).forEach(([key, value]) => {
 
-    if (value !== undefined) {
-      normalizedParams.append(key, value === null ? 'null' : String(value))
-    }
-  });
 
-  const stringifiedParams = normalizedParams.toString();
 
-  return stringifiedParams.length > 0 ? `/api/music/search?${stringifiedParams}` : `/api/music/search`
+  return `/api/music/tracks/${id}`
 }
 
 /**
- * @summary Search the music catalog
+ * @summary Get a current stream URL for a saved track
  */
-export const searchMusic = async (params: SearchMusicParams, options?: Parameters<typeof customFetch>[1]): Promise<MusicTrack[]> => {
+export const getJamendoTrack = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<JamendoTrack> => {
 
-  return customFetch<MusicTrack[]>(getSearchMusicUrl(params),
+  return customFetch<JamendoTrack>(getGetJamendoTrackUrl(id),
   {
     ...options,
     method: 'GET'
@@ -244,45 +241,45 @@ export const searchMusic = async (params: SearchMusicParams, options?: Parameter
 
 
 
-export const getSearchMusicQueryKey = (params?: SearchMusicParams,) => {
+export const getGetJamendoTrackQueryKey = (id: string,) => {
     return [
-    `/api/music/search`, ...(params ? [params] : [])
+    `/api/music/tracks/${id}`
     ] as const;
     }
 
 
-export const getSearchMusicQueryOptions = <TData = Awaited<ReturnType<typeof searchMusic>>, TError = ErrorType<void>>(params: SearchMusicParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchMusic>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export const getGetJamendoTrackQueryOptions = <TData = Awaited<ReturnType<typeof getJamendoTrack>>, TError = ErrorType<void>>(id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJamendoTrack>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
 
-  const queryKey =  queryOptions?.queryKey ?? getSearchMusicQueryKey(params);
+  const queryKey =  queryOptions?.queryKey ?? getGetJamendoTrackQueryKey(id);
 
 
 
-    const queryFn: QueryFunction<Awaited<ReturnType<typeof searchMusic>>> = ({ signal }) => searchMusic(params, { signal, ...requestOptions });
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getJamendoTrack>>> = ({ signal }) => getJamendoTrack(id, { signal, ...requestOptions });
 
 
 
 
 
-   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof searchMusic>>, TError, TData> & { queryKey: QueryKey }
+   return  { queryKey, queryFn, enabled: id !== null && id !== undefined, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getJamendoTrack>>, TError, TData> & { queryKey: QueryKey }
 }
 
-export type SearchMusicQueryResult = NonNullable<Awaited<ReturnType<typeof searchMusic>>>
-export type SearchMusicQueryError = ErrorType<void>
+export type GetJamendoTrackQueryResult = NonNullable<Awaited<ReturnType<typeof getJamendoTrack>>>
+export type GetJamendoTrackQueryError = ErrorType<void>
 
 
 /**
- * @summary Search the music catalog
+ * @summary Get a current stream URL for a saved track
  */
 
-export function useSearchMusic<TData = Awaited<ReturnType<typeof searchMusic>>, TError = ErrorType<void>>(
- params: SearchMusicParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof searchMusic>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+export function useGetJamendoTrack<TData = Awaited<ReturnType<typeof getJamendoTrack>>, TError = ErrorType<void>>(
+ id: string, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof getJamendoTrack>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
 
  ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
 
-  const queryOptions = getSearchMusicQueryOptions(params,options)
+  const queryOptions = getGetJamendoTrackQueryOptions(id,options)
 
   const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
 
@@ -294,4 +291,78 @@ export function useSearchMusic<TData = Awaited<ReturnType<typeof searchMusic>>, 
 
 
 
+
+export const getPrepareJamendoDownloadUrl = (id: string,) => {
+
+
+
+
+  return `/api/music/download/${id}`
+}
+
+/**
+ * @summary Download a track only when Jamendo allows it
+ */
+export const prepareJamendoDownload = async (id: string, options?: Parameters<typeof customFetch>[1]): Promise<JamendoDownload> => {
+
+  return customFetch<JamendoDownload>(getPrepareJamendoDownloadUrl(id),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPrepareJamendoDownloadMutationKey = () => ['prepareJamendoDownload'] as const;
+
+export const getPrepareJamendoDownloadMutationOptions = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof prepareJamendoDownload>>, TError,PrepareJamendoDownloadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof prepareJamendoDownload>>, TError,PrepareJamendoDownloadMutationVariables, TContext> => {
+
+const mutationKey = getPrepareJamendoDownloadMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof prepareJamendoDownload>>, PrepareJamendoDownloadMutationVariables> = (props) => {
+          const {id} = props ?? {};
+
+          return  prepareJamendoDownload(id,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PrepareJamendoDownloadMutationResult = NonNullable<Awaited<ReturnType<typeof prepareJamendoDownload>>>
+
+    export type PrepareJamendoDownloadMutationError = ErrorType<void>
+    export type PrepareJamendoDownloadMutationVariables = {id: string}
+
+    /**
+ * @summary Download a track only when Jamendo allows it
+ */
+export const usePrepareJamendoDownload = <TError = ErrorType<void>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof prepareJamendoDownload>>, TError,PrepareJamendoDownloadMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof prepareJamendoDownload>>,
+        TError,
+        PrepareJamendoDownloadMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPrepareJamendoDownloadMutationOptions(options));
+    }
 

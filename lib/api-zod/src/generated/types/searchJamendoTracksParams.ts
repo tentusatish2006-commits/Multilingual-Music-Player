@@ -5,17 +5,14 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { SearchJamendoTracksLanguage } from './searchJamendoTracksLanguage';
 
-export type SearchMusicParams = {
+export type SearchJamendoTracksParams = {
+language: SearchJamendoTracksLanguage;
 /**
- * @minLength 1
  * @maxLength 120
  */
-term: string;
-/**
- * @pattern ^[a-z]{2}$
- */
-country?: string;
+term?: string;
 /**
  * @minimum 1
  * @maximum 50

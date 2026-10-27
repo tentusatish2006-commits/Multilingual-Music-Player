@@ -6,16 +6,17 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface MusicTrack {
+export interface JamendoTrack {
   id: string;
   title: string;
   artist: string;
   album: string;
   artworkUrl: string;
-  /** @nullable */
-  previewUrl: string | null;
-  durationMs: number;
-  /** @nullable */
-  releaseDate: string | null;
+  streamUrl: string;
+  durationSeconds: number;
   genre: string;
+  language: string;
+  licenseUrl: string;
+  trackUrl: string;
+  downloadAllowed: boolean;
 }

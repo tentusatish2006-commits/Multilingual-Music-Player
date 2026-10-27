@@ -6,9 +6,6 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GetMusicChartsParams = {
-/**
- * @pattern ^[a-z]{2}$
- */
-country: string;
-};
+export interface JamendoDownload {
+  downloadUrl: string;
+}
