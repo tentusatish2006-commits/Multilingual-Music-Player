@@ -1,8 +1,29 @@
-node_modules
+# compiled output
 dist
-.env
-.env.local
-*.log
-.DS_Store
-.tsbuildinfo
+tmp
+out-tsc
 *.tsbuildinfo
+.expo
+.next
+.turbo
+
+# dependencies
+node_modules
+
+# IDE
+.idea
+.vscode/*
+!.vscode/settings.json
+
+# misc
+.DS_Store
+Thumbs.db
+npm-debug.log
+yarn-error.log
+
+# Replit
+.cache/
+.local/
+/artifacts/aurora-music/music/**/*.mp3
+/artifacts/aurora-music/music/**/*.part
+/artifacts/aurora-music/credits.csv

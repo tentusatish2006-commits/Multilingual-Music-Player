@@ -1,0 +1,4 @@
+.local
+/artifacts/aurora-music/music/**/*.mp3
+/artifacts/aurora-music/music/**/*.part
+/artifacts/aurora-music/credits.csv
